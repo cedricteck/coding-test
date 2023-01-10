@@ -59,8 +59,7 @@ public class ComputeRateService {
                     }
                 }
             } else {
-                String value = ((Map<String, String>) ruleEntry.getValue()).entrySet().stream().findFirst().orElseThrow().getValue();
-                if (!match(ruleEntry.getKey(), value, calculRequest)) {
+                if(!rulesMatch((Map.ofEntries(ruleEntry)), calculRequest)) {
                     match = false;
                 }
             }
@@ -107,25 +106,32 @@ public class ComputeRateService {
 
     private boolean leafNodeMatches(Map<String, Object> rules, CalculRequest calculRequest) {
         for (Map.Entry<String, Object> condition : rules.entrySet()) {
-            Map.Entry<String, String> entry = ((Map<String, String>) condition.getValue()).entrySet().stream().findFirst().orElseThrow();
+            Map.Entry<String, Object> entry = ((Map<String, Object>) condition.getValue()).entrySet().stream().findFirst().orElseThrow();
             return match(condition.getKey(), entry.getKey(), calculRequest);
         }
         return false;
     }
 
-    private boolean match(String key, String value, CalculRequest calculRequest) {
+    private boolean match(String key, Object value, CalculRequest calculRequest) {
+        String valueString = "";
+        if (value instanceof String) {
+            valueString = (String) value;
+        }
+        if (value instanceof Map<?, ?>) {
+            valueString = ((Map<String, String>) value).entrySet().stream().findFirst().orElseThrow().getValue();
+        }
         switch (key) {
             case "@mission.duration" -> {
-                return computeMissionDurationRule(value, calculRequest);
+                return computeMissionDurationRule(valueString, calculRequest);
             }
             case "@commercialRelationship.duration" -> {
-                return computeCommercialRelationRule(value, calculRequest);
+                return computeCommercialRelationRule(valueString, calculRequest);
             }
             case "@client.location" -> {
-                return computeClientLocationRule(value, calculRequest);
+                return computeClientLocationRule(valueString, calculRequest);
             }
             case "@freelancer.location" -> {
-                return computeFreelanceLocationRule(value, calculRequest);
+                return computeFreelanceLocationRule(valueString, calculRequest);
             }
             default -> {
                 return false;
