@@ -8,7 +8,11 @@ import com.malt.codingtest.model.Rate;
 import com.malt.codingtest.model.Rule;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,6 +20,8 @@ import java.util.Map;
 
 @Service
 public class ComputeRateService {
+
+    private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public ApplicableRate findApplicableRate(CalculRequest calculRequest) {
         String ruleString = "{\n" +
@@ -107,31 +113,24 @@ public class ComputeRateService {
     private boolean leafNodeMatches(Map<String, Object> rules, CalculRequest calculRequest) {
         for (Map.Entry<String, Object> condition : rules.entrySet()) {
             Map.Entry<String, Object> entry = ((Map<String, Object>) condition.getValue()).entrySet().stream().findFirst().orElseThrow();
-            return match(condition.getKey(), entry.getKey(), calculRequest);
+            return match(condition.getKey(), entry, calculRequest);
         }
         return false;
     }
 
-    private boolean match(String key, Object value, CalculRequest calculRequest) {
-        String valueString = "";
-        if (value instanceof String) {
-            valueString = (String) value;
-        }
-        if (value instanceof Map<?, ?>) {
-            valueString = ((Map<String, String>) value).entrySet().stream().findFirst().orElseThrow().getValue();
-        }
+    private boolean match(String key, Map.Entry<String, Object> value, CalculRequest calculRequest) {
         switch (key) {
             case "@mission.duration" -> {
-                return computeMissionDurationRule(valueString, calculRequest);
+                return computeMissionDurationRule(value, calculRequest);
             }
             case "@commercialRelationship.duration" -> {
-                return computeCommercialRelationRule(valueString, calculRequest);
+                return computeCommercialRelationRule(value, calculRequest);
             }
             case "@client.location" -> {
-                return computeClientLocationRule(valueString, calculRequest);
+                return computeClientLocationRule((String) value.getValue(), calculRequest);
             }
             case "@freelancer.location" -> {
-                return computeFreelanceLocationRule(valueString, calculRequest);
+                return computeFreelanceLocationRule((String) value.getValue(), calculRequest);
             }
             default -> {
                 return false;
@@ -139,18 +138,24 @@ public class ComputeRateService {
         }
     }
 
-    private boolean computeMissionDurationRule(String value, CalculRequest calculRequest) {
-        /*long durationInMonths = ChronoUnit.MONTHS.between(LocalDateTime.now(), calculRequest.getCommercialRelationship().getLastMission());
-        long value = Long.parseLong(entry.getValue().substring(0, 1));
-        return computeValueComparison(entry.getKey(), durationInMonths, value);*/
-        return true;
+    private boolean computeMissionDurationRule(Map.Entry<String, Object> entryValue, CalculRequest calculRequest) {
+        return computeValueComparison(entryValue.getKey(),
+                findDuration(calculRequest.getCommercialRelationship().getLastMission()), findDurationFromRuleEntry(entryValue));
     }
 
-    private boolean computeCommercialRelationRule(String value, CalculRequest calculRequest) {
-        /*long durationInMonths = ChronoUnit.MONTHS.between(LocalDateTime.now(), calculRequest.getCommercialRelationship().getFirstMission());
-        long value = Long.parseLong(entry.getValue().substring(0, 1));
-        return computeValueComparison(entry.getKey(), durationInMonths, value);*/
-        return true;
+    private long findDurationFromRuleEntry(Map.Entry<String, Object> entryValue) {
+        String stringValue = (String) entryValue.getValue();
+        return Long.parseLong(stringValue.substring(0, stringValue.length() - 6));
+    }
+
+    private long findDuration(String calculRequesDate) {
+        return ChronoUnit.MONTHS.between(LocalDate.parse(calculRequesDate.substring(0, 10),
+                dateTimeFormatter).atStartOfDay(), LocalDateTime.now());
+    }
+
+    private boolean computeCommercialRelationRule(Map.Entry<String, Object> entryValue, CalculRequest calculRequest) {
+        return computeValueComparison(entryValue.getKey(),
+                findDuration(calculRequest.getCommercialRelationship().getFirstMission()), findDurationFromRuleEntry(entryValue));
     }
 
     private boolean computeClientLocationRule(String value, CalculRequest calculRequest) {
