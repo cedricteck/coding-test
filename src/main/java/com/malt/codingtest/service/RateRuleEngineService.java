@@ -1,83 +1,59 @@
 package com.malt.codingtest.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.malt.codingtest.model.ApplicableRate;
 import com.malt.codingtest.model.CalculRequest;
-import com.malt.codingtest.model.Rate;
 import com.malt.codingtest.model.Rule;
+import com.malt.codingtest.repository.RuleRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
-public class ComputeRateService {
+public class RateRuleEngineService {
 
+    @Autowired
+    private RuleRepository ruleRepository;
+
+    @Autowired
+    private LocalisationService localisationService;
+    
     private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public ApplicableRate findApplicableRate(CalculRequest calculRequest) {
-        String ruleString = "{\n" +
-                "  \"@or\": [\n" +
-                "    {\n" +
-                "      \"@mission.duration\": {\n" +
-                "        \"gt\": \"2months\"\n" +
-                "      }\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"@commercialRelationship.duration\": {\n" +
-                "        \"gt\": \"2months\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ],\n" +
-                "  \"@client.location\": {\n" +
-                "    \"country\": \"ES\"\n" +
-                "  },\n" +
-                "  \"@freelancer.location\": {\n" +
-                "    \"country\": \"ES\"\n" +
-                "  }\n" +
-                "}";
-        Rule rule = new Rule();
-        Rate rate = new Rate();
-        rate.setPercent(8L);
-        rule.setRate(rate);
-        rule.setId("1");
-        rule.setName("spain and repeats");
-        try {
-            rule.setRestrictions(new ObjectMapper().readValue(ruleString, Map.class));
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
         ApplicableRate applicableRate = new ApplicableRate();
-        boolean match = true;
-        for (Map.Entry<String, Object> ruleEntry: rule.getRestrictions().entrySet()) {
-            if (ruleEntry.getValue() instanceof ArrayList<?>) {
-                for(Map<String, Object> entry: (ArrayList<Map<String, Object>>)ruleEntry.getValue()) {
-                    if (!rulesMatch(entry, calculRequest)) {
-                        match = false;
-                    }
-                }
-            } else {
-                if(!rulesMatch((Map.ofEntries(ruleEntry)), calculRequest)) {
-                    match = false;
-                }
-            }
-
-        }
-        if (match) {
-            applicableRate.setFees(rule.getRate().getPercent());
-            applicableRate.setReason(rule.getName());
-        } else {
-            applicableRate.setFees(10L);
-        }
-        return applicableRate;
+        applicableRate.setFees(10L);
+       for (Rule rule: ruleRepository.getRules()) {
+           boolean match = true;
+           for (Map.Entry<String, Object> ruleEntry: rule.getRestrictions().entrySet()) {
+               if (ruleEntry.getValue() instanceof ArrayList<?>) {
+                   for(Map<String, Object> entry: (ArrayList<Map<String, Object>>)ruleEntry.getValue()) {
+                       if (!rulesMatch(entry, calculRequest)) {
+                           match = false;
+                       }
+                   }
+               } else {
+                   if (!rulesMatch((Map.ofEntries(ruleEntry)), calculRequest)) {
+                       match = false;
+                   }
+               }
+           }
+           if (match) {
+               applicableRate.setFees(rule.getRate().getPercent());
+               applicableRate.setReason(rule.getName());
+           } else {
+               applicableRate.setFees(10L);
+           }
+           return applicableRate;
+       }
+       return applicableRate;
     }
 
     private boolean rulesMatch(Map<String, Object> rules, CalculRequest calculRequest) {
@@ -148,8 +124,8 @@ public class ComputeRateService {
         return Long.parseLong(stringValue.substring(0, stringValue.length() - 6));
     }
 
-    private long findDuration(String calculRequesDate) {
-        return ChronoUnit.MONTHS.between(LocalDate.parse(calculRequesDate.substring(0, 10),
+    private long findDuration(String calculRequestDate) {
+        return ChronoUnit.MONTHS.between(LocalDate.parse(calculRequestDate.substring(0, 10),
                 dateTimeFormatter).atStartOfDay(), LocalDateTime.now());
     }
 
@@ -159,11 +135,11 @@ public class ComputeRateService {
     }
 
     private boolean computeClientLocationRule(String value, CalculRequest calculRequest) {
-        return value.equals(calculRequest.getClient().getIp());
+        return value.equals(localisationService.localizeFromIp(calculRequest.getClient().getIp()).getCountry_code());
     }
 
     private boolean computeFreelanceLocationRule(String value, CalculRequest calculRequest) {
-        return value.equals(calculRequest.getFreelancer().getIp());
+        return value.equals(localisationService.localizeFromIp(calculRequest.getFreelancer().getIp()).getCountry_code());
     }
 
     private boolean computeValueComparison(String operator, long valueToCompare, long value) {
