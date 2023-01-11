@@ -27,39 +27,33 @@ public class RateRuleEngineService {
     
     private final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+    private static final String AND_OPERATOR = "@and";
+
+    private static final String OR_OPERATOR = "@or";
+
     public ApplicableRate findApplicableRate(CalculRequest calculRequest) {
         ApplicableRate applicableRate = new ApplicableRate();
         applicableRate.setFees(10L);
        for (Rule rule: ruleRepository.getRules()) {
-           boolean match = true;
-           for (Map.Entry<String, Object> ruleEntry: rule.getRestrictions().entrySet()) {
-               if (ruleEntry.getValue() instanceof ArrayList<?>) {
-                   for(Map<String, Object> entry: (ArrayList<Map<String, Object>>)ruleEntry.getValue()) {
-                       if (!rulesMatch(entry, calculRequest)) {
-                           match = false;
-                       }
-                   }
-               } else {
-                   if (!rulesMatch((Map.ofEntries(ruleEntry)), calculRequest)) {
-                       match = false;
-                   }
-               }
+           Map<String, Object> map = new HashMap<>();
+           List<Map<String, Object>> andConditions = new ArrayList<>();
+           for (Map.Entry<String, Object> entry : rule.getRestrictions().entrySet()) {
+               andConditions.add(Map.ofEntries(entry));
            }
-           if (match) {
+           map.put(AND_OPERATOR, andConditions);
+           if (rulesMatch(map, calculRequest)) {
                applicableRate.setFees(rule.getRate().getPercent());
                applicableRate.setReason(rule.getName());
-           } else {
-               applicableRate.setFees(10L);
+               return applicableRate;
            }
-           return applicableRate;
        }
        return applicableRate;
     }
 
     private boolean rulesMatch(Map<String, Object> rules, CalculRequest calculRequest) {
-        if (rules.containsKey("@or")) {
+        if (rules.containsKey(OR_OPERATOR)) {
             return orOperatorMatches(rules, calculRequest);
-        } else if (rules.containsKey("@and")) {
+        } else if (rules.containsKey(AND_OPERATOR)) {
             return andOperatorMatches(rules, calculRequest);
         } else {
             return leafNodeMatches(rules, calculRequest);
@@ -67,7 +61,7 @@ public class RateRuleEngineService {
     }
 
     private boolean orOperatorMatches(Map<String, Object> rules, CalculRequest calculRequest) {
-        ArrayList<Map<String, Object>> orConditions = (ArrayList<Map<String, Object>>) rules.get("@or");
+        List<Map<String, Object>> orConditions = (List<Map<String, Object>>) rules.get("@or");
         for (Map<String, Object> orCondition: orConditions) {
             if (rulesMatch(orCondition, calculRequest)) {
                 return true;
@@ -77,7 +71,7 @@ public class RateRuleEngineService {
     }
 
     private boolean andOperatorMatches(Map<String, Object> rules, CalculRequest calculRequest) {
-        ArrayList<Map<String, Object>> andConditions = (ArrayList<Map<String, Object>>)rules.get("@and");
+        List<Map<String, Object>> andConditions = (List<Map<String, Object>>)rules.get("@and");
         for(Map<String, Object> andCondition: andConditions) {
             if (!rulesMatch(andCondition, calculRequest)) {
                 return false;
