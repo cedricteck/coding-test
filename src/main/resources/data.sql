@@ -1,0 +1,1 @@
+INSERT INTO rule (id, name, rate, restrictions) values ('1', 'spain and repeat', 8, '{"@or":[{"@mission.duration":{"gt":"2months"}},{"@commercialRelationship.duration":{"gt":"2months"}}],"@client.location":{"country":"ES"},"@freelancer.location":{"country":"ES"}}');

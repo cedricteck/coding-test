@@ -1,21 +1,11 @@
 package com.malt.codingtest.repository;
 
 import com.malt.codingtest.model.Rule;
-import lombok.Getter;
-import lombok.Setter;
-import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-@Service
-@Getter
-@Setter
-public class RuleRepository {
+@Repository
+public interface RuleRepository extends JpaRepository<Rule, String> {
 
-    private List<Rule> rules = new ArrayList<>();
-
-    public void addRule(Rule rule) {
-        rules.add(rule);
-    }
 }

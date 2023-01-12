@@ -1,9 +1,9 @@
 package com.malt.codingtest.service;
 
-import com.malt.codingtest.model.ApplicableRate;
-import com.malt.codingtest.model.CalculRequest;
+import com.malt.codingtest.dto.ApplicableRateDto;
+import com.malt.codingtest.dto.CalculRequestDto;
 import com.malt.codingtest.model.Rule;
-import com.malt.codingtest.repository.RuleRepository;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -20,7 +20,7 @@ import java.util.Map;
 public class RateRuleEngineService {
 
     @Autowired
-    private RuleRepository ruleRepository;
+    private RuleService ruleService;
 
     @Autowired
     private LocalisationService localisationService;
@@ -31,76 +31,88 @@ public class RateRuleEngineService {
 
     private static final String OR_OPERATOR = "@or";
 
-    public ApplicableRate findApplicableRate(CalculRequest calculRequest) {
-        ApplicableRate applicableRate = new ApplicableRate();
-        applicableRate.setFees(10L);
-       for (Rule rule: ruleRepository.getRules()) {
+    private static final long DEFAULT_FEE = 10L;
+
+    /**
+     * Find an applicable rate based on the calcul request and the rules in the system
+     * @param calculRequestDto calcul request containing client, freelancer and commercial relationship infos
+     * @return ApplicableRateDto with fees find in matching rule or default (10)
+     */
+    public ApplicableRateDto findApplicableRate(CalculRequestDto calculRequestDto) {
+        ApplicableRateDto applicableRateDto = new ApplicableRateDto();
+        applicableRateDto.setFees(DEFAULT_FEE);
+       for (Rule rule: ruleService.findAll()) {
            Map<String, Object> map = new HashMap<>();
            List<Map<String, Object>> andConditions = new ArrayList<>();
-           for (Map.Entry<String, Object> entry : rule.getRestrictions().entrySet()) {
+           // convert restrictions to a list of "and" conditions
+           for (Map.Entry<String, Object> entry :
+                   ruleService.convertRestrictionStringToMap(rule.getRestrictions()).entrySet()) {
                andConditions.add(Map.ofEntries(entry));
            }
            map.put(AND_OPERATOR, andConditions);
-           if (rulesMatch(map, calculRequest)) {
-               applicableRate.setFees(rule.getRate().getPercent());
-               applicableRate.setReason(rule.getName());
-               return applicableRate;
+           if (rulesMatch(map, calculRequestDto)) {
+               applicableRateDto.setFees(rule.getRate());
+               applicableRateDto.setReason(rule.getName());
+               return applicableRateDto;
            }
        }
-       return applicableRate;
+       return applicableRateDto;
     }
 
-    private boolean rulesMatch(Map<String, Object> rules, CalculRequest calculRequest) {
+    private boolean rulesMatch(Map<String, Object> rules, CalculRequestDto calculRequestDto) {
+        // recursively go through all the "or" and "and" operator until finding the leaf operators
         if (rules.containsKey(OR_OPERATOR)) {
-            return orOperatorMatches(rules, calculRequest);
+            return orOperatorMatches(rules, calculRequestDto);
         } else if (rules.containsKey(AND_OPERATOR)) {
-            return andOperatorMatches(rules, calculRequest);
+            return andOperatorMatches(rules, calculRequestDto);
         } else {
-            return leafNodeMatches(rules, calculRequest);
+            return leafOperatorMatches(rules, calculRequestDto);
         }
     }
 
-    private boolean orOperatorMatches(Map<String, Object> rules, CalculRequest calculRequest) {
-        List<Map<String, Object>> orConditions = (List<Map<String, Object>>) rules.get("@or");
+    private boolean orOperatorMatches(Map<String, Object> rules, CalculRequestDto calculRequestDto) {
+        List<Map<String, Object>> orConditions = (List<Map<String, Object>>) rules.get(OR_OPERATOR);
         for (Map<String, Object> orCondition: orConditions) {
-            if (rulesMatch(orCondition, calculRequest)) {
+            // if one of the conditions matches, stop there and return true ("or" operator)
+            if (rulesMatch(orCondition, calculRequestDto)) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean andOperatorMatches(Map<String, Object> rules, CalculRequest calculRequest) {
-        List<Map<String, Object>> andConditions = (List<Map<String, Object>>)rules.get("@and");
+    private boolean andOperatorMatches(Map<String, Object> rules, CalculRequestDto calculRequestDto) {
+        List<Map<String, Object>> andConditions = (List<Map<String, Object>>)rules.get(AND_OPERATOR);
+        // if one of the conditions doesn't match, stop there and return false ("and" operator)
         for(Map<String, Object> andCondition: andConditions) {
-            if (!rulesMatch(andCondition, calculRequest)) {
+            if (!rulesMatch(andCondition, calculRequestDto)) {
                 return false;
             }
         }
         return true;
     }
 
-    private boolean leafNodeMatches(Map<String, Object> rules, CalculRequest calculRequest) {
+    private boolean leafOperatorMatches(Map<String, Object> rules, CalculRequestDto calculRequestDto) {
         for (Map.Entry<String, Object> condition : rules.entrySet()) {
             Map.Entry<String, Object> entry = ((Map<String, Object>) condition.getValue()).entrySet().stream().findFirst().orElseThrow();
-            return match(condition.getKey(), entry, calculRequest);
+            return match(condition.getKey(), entry, calculRequestDto);
         }
         return false;
     }
 
-    private boolean match(String key, Map.Entry<String, Object> value, CalculRequest calculRequest) {
+    private boolean match(String key, Map.Entry<String, Object> value, CalculRequestDto calculRequestDto) {
         switch (key) {
             case "@mission.duration" -> {
-                return computeMissionDurationRule(value, calculRequest);
+                return computeMissionDurationRule(value, calculRequestDto);
             }
             case "@commercialRelationship.duration" -> {
-                return computeCommercialRelationRule(value, calculRequest);
+                return computeCommercialRelationRule(value, calculRequestDto);
             }
             case "@client.location" -> {
-                return computeClientLocationRule((String) value.getValue(), calculRequest);
+                return computeClientLocationRule((String) value.getValue(), calculRequestDto);
             }
             case "@freelancer.location" -> {
-                return computeFreelanceLocationRule((String) value.getValue(), calculRequest);
+                return computeFreelanceLocationRule((String) value.getValue(), calculRequestDto);
             }
             default -> {
                 return false;
@@ -108,9 +120,9 @@ public class RateRuleEngineService {
         }
     }
 
-    private boolean computeMissionDurationRule(Map.Entry<String, Object> entryValue, CalculRequest calculRequest) {
+    private boolean computeMissionDurationRule(Map.Entry<String, Object> entryValue, CalculRequestDto calculRequestDto) {
         return computeValueComparison(entryValue.getKey(),
-                findDuration(calculRequest.getCommercialRelationship().getLastMission()), findDurationFromRuleEntry(entryValue));
+                findDuration(calculRequestDto.getCommercialRelationshipDto().getLastMission()), findDurationFromRuleEntry(entryValue));
     }
 
     private long findDurationFromRuleEntry(Map.Entry<String, Object> entryValue) {
@@ -123,17 +135,17 @@ public class RateRuleEngineService {
                 dateTimeFormatter).atStartOfDay(), LocalDateTime.now());
     }
 
-    private boolean computeCommercialRelationRule(Map.Entry<String, Object> entryValue, CalculRequest calculRequest) {
+    private boolean computeCommercialRelationRule(Map.Entry<String, Object> entryValue, CalculRequestDto calculRequestDto) {
         return computeValueComparison(entryValue.getKey(),
-                findDuration(calculRequest.getCommercialRelationship().getFirstMission()), findDurationFromRuleEntry(entryValue));
+                findDuration(calculRequestDto.getCommercialRelationshipDto().getFirstMission()), findDurationFromRuleEntry(entryValue));
     }
 
-    private boolean computeClientLocationRule(String value, CalculRequest calculRequest) {
-        return value.equals(localisationService.localizeFromIp(calculRequest.getClient().getIp()).getCountry_code());
+    private boolean computeClientLocationRule(String value, CalculRequestDto calculRequestDto) {
+        return value.equals(localisationService.localizeFromIp(calculRequestDto.getClient().getIp()).getCountry_code());
     }
 
-    private boolean computeFreelanceLocationRule(String value, CalculRequest calculRequest) {
-        return value.equals(localisationService.localizeFromIp(calculRequest.getFreelancer().getIp()).getCountry_code());
+    private boolean computeFreelanceLocationRule(String value, CalculRequestDto calculRequestDto) {
+        return value.equals(localisationService.localizeFromIp(calculRequestDto.getFreelancer().getIp()).getCountry_code());
     }
 
     private boolean computeValueComparison(String operator, long valueToCompare, long value) {

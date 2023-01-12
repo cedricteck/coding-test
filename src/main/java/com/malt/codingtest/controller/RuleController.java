@@ -1,10 +1,11 @@
 package com.malt.codingtest.controller;
 
-import com.malt.codingtest.model.ApplicableRate;
-import com.malt.codingtest.model.CalculRequest;
-import com.malt.codingtest.model.Rule;
-import com.malt.codingtest.repository.RuleRepository;
+import com.malt.codingtest.dto.RuleDto;
+import com.malt.codingtest.dto.ApplicableRateDto;
+import com.malt.codingtest.dto.CalculRequestDto;
 import com.malt.codingtest.service.RateRuleEngineService;
+import com.malt.codingtest.service.RuleService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,14 +17,14 @@ public class RuleController {
     private RateRuleEngineService rateRuleEngineService;
 
     @Autowired
-    private RuleRepository ruleRepository;
+    private RuleService ruleService;
     @PostMapping
-    public ApplicableRate findApplicableRate(@RequestBody CalculRequest calculRequest) {
-        return rateRuleEngineService.findApplicableRate(calculRequest);
+    public ApplicableRateDto findApplicableRate(@RequestBody CalculRequestDto calculRequestDto) {
+        return rateRuleEngineService.findApplicableRate(calculRequestDto);
     }
 
     @PostMapping("/add")
-    public void addRule(@RequestBody Rule rule) {
-        ruleRepository.addRule(rule);
+    public RuleDto addRule(@RequestBody RuleDto rule) {
+        return ruleService.addRule(rule);
     }
 }

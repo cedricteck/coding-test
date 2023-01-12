@@ -1,6 +1,6 @@
 package com.malt.codingtest.service;
 
-import com.malt.codingtest.model.ApiStackResponse;
+import com.malt.codingtest.dto.ApiStackResponseDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -16,7 +16,7 @@ public class LocalisationService {
     @Value("${apistack.accessKey}")
     private String apiStackAccessKey;
 
-    public ApiStackResponse localizeFromIp(String ip) {
-        return restTemplate.getForObject(apiStackBaseUrl + "/" + ip + "?access_key=" + apiStackAccessKey, ApiStackResponse.class);
+    public ApiStackResponseDto localizeFromIp(String ip) {
+        return restTemplate.getForObject(apiStackBaseUrl + "/" + ip + "?access_key=" + apiStackAccessKey, ApiStackResponseDto.class);
     }
 }
