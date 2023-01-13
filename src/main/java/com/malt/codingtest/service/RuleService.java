@@ -7,6 +7,7 @@ import com.malt.codingtest.repository.RuleRepository;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import java.util.Map;
  * @project coding-test
  */
 @Service
+@Transactional
 public class RuleService {
 
     @Autowired

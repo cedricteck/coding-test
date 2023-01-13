@@ -122,7 +122,7 @@ public class RateRuleEngineService {
 
     private boolean computeMissionDurationRule(Map.Entry<String, Object> entryValue, CalculRequestDto calculRequestDto) {
         return computeValueComparison(entryValue.getKey(),
-                findDuration(calculRequestDto.getCommercialRelationshipDto().getLastMission()), findDurationFromRuleEntry(entryValue));
+                findDuration(calculRequestDto.getCommercialRelationship().getLastMission()), findDurationFromRuleEntry(entryValue));
     }
 
     private long findDurationFromRuleEntry(Map.Entry<String, Object> entryValue) {
@@ -137,7 +137,7 @@ public class RateRuleEngineService {
 
     private boolean computeCommercialRelationRule(Map.Entry<String, Object> entryValue, CalculRequestDto calculRequestDto) {
         return computeValueComparison(entryValue.getKey(),
-                findDuration(calculRequestDto.getCommercialRelationshipDto().getFirstMission()), findDurationFromRuleEntry(entryValue));
+                findDuration(calculRequestDto.getCommercialRelationship().getFirstMission()), findDurationFromRuleEntry(entryValue));
     }
 
     private boolean computeClientLocationRule(String value, CalculRequestDto calculRequestDto) {

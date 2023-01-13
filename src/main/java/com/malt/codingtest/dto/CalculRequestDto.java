@@ -11,5 +11,5 @@ public class CalculRequestDto {
 
     private PersonDto freelancer;
 
-    private CommercialRelationshipDto commercialRelationshipDto;
+    private CommercialRelationshipDto commercialRelationship;
 }
